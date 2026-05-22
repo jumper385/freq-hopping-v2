@@ -8,13 +8,13 @@ from src.bb.BaseBand import BaseBand
 sdr_rx = PlutoSDR(uri="ip:192.168.8.94", buffer_size=1024*36)
 sdr_tx = PlutoSDR(uri="ip:192.168.8.93", tx_gain=0)
 
-bb = BaseBand(seq_len=1024, pre_len=32)
+bb = BaseBand(seq_len=600, pre_len=64, _enable_cfo=True)
 sig = bb.gen_tx()
 
 sdr_tx.transmit(sig * 2**12)
 sig_rx = sdr_rx.receive(3)
 t = np.arange(0, len(sig_rx))
-sig_rx = sig_rx * np.exp(-2j * np.pi * t * 2.09 / 1024)
+# sig_rx = sig_rx * np.exp(-2j * np.pi * t * 2.08 / 1024)
 
 fig, ax = plt.subplots(5, sharex=False)
 
