@@ -10,10 +10,13 @@ log = logging.getLogger(__name__)
 
 class BaseBand:
 
-    def __init__(self, seq_len=1024, pre_len=32, cp_len=32, _enable_cfo=True):
+    def __init__(self, seq_len=1024, pre_len=32, cp_len=32, _enable_cfo=True,
+                 guard_pad=16, pilot_spacing=8):
         self.seq_len = seq_len
         self.pre_len = pre_len
         self.cp_len = cp_len
+        self.guard_pad = guard_pad
+        self.pilot_spacing = pilot_spacing
         self._rx_pre_margin = int(self.pre_len * 0.1)
         self.total_len = self.seq_len + 2 * self.pre_len
 
@@ -21,8 +24,10 @@ class BaseBand:
 
         self._enable_cfo = _enable_cfo
 
-    def _encode_symbol(self, symbol, dtype=complex, pilot_spacing=8, guard_pad=16):
+    def _encode_symbol(self, symbol, dtype=complex):
         n_tones = int(self.seq_len / 2)
+        guard_pad = self.guard_pad
+        pilot_spacing = self.pilot_spacing
 
         tones = np.zeros(n_tones - 2 * guard_pad, dtype=complex)
         pilot_mask = np.zeros(n_tones - 2 * guard_pad, dtype=bool)
@@ -66,8 +71,10 @@ class BaseBand:
         out = np.concatenate([self.preamble, self.preamble, cp, data_seq])
         return out
 
-    def equalize_symbols(self, symbols, guard_pad=16, pilot_spacing=8):
+    def equalize_symbols(self, symbols):
         n_tones = int(self.seq_len / 2)
+        guard_pad = self.guard_pad
+        pilot_spacing = self.pilot_spacing
         ref_pilot = np.zeros(n_tones - 2 * guard_pad, dtype=complex)
         pilot_mask = np.zeros(n_tones - 2 * guard_pad, dtype=bool)
         pilot_mask[::pilot_spacing] = True
@@ -132,7 +139,7 @@ class BaseBand:
         """
         finds snippets in the received signal
         assumes preamble exists
-        gives you all snippets except the last one in the frame
+        gives you all snippets except the last one int he frame
         cos last one could be prematurely snipped off
         """
         corr = np.correlate(rx, self.preamble)
