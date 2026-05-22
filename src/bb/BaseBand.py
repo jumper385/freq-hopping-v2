@@ -9,14 +9,15 @@ log = logging.getLogger(__name__)
 
 class BaseBand:
 
-    def __init__(self, seq_len=1024, pre_len=32):
+    def __init__(self, seq_len=1024, pre_len=32, _enable_cfo=True):
         self.seq_len = seq_len
         self.pre_len = pre_len
         self._rx_pre_margin = int(self.pre_len * 0.1)
         self.total_len = self.seq_len + 2 * self.pre_len
 
         self.preamble = zadoff_chu(self.pre_len, self.pre_len - 1)
-        pass
+
+        self._enable_cfo = _enable_cfo
 
     def gen_tx(self):
         t = np.linspace(0, 1, self.seq_len)
@@ -50,6 +51,11 @@ class BaseBand:
         rising_edges = np.where(np.diff(mask.astype(int)) > 0)[0]
         return rising_edges
 
+    def _get_freq_offset(self, rx, pre1, pre2):
+        out = np.angle(np.dot(pre1, np.conj(pre2)))
+        out = out / (2 * np.pi * self.pre_len/(self.seq_len))
+        return out
+
     def _find_snippets(self, rx):
         """
         finds snippets in the received signal
@@ -57,7 +63,8 @@ class BaseBand:
         gives you all snippets except the last one int he frame
         cos last one could be prematurely snipped off
         """
-        corr_mag = np.abs(np.correlate(rx, self.preamble))
+        corr = np.correlate(rx, self.preamble)
+        corr_mag = np.abs(corr)
         corr_threshold = self._get_threshold(corr_mag)
         print(corr_threshold)
 
@@ -79,7 +86,17 @@ class BaseBand:
                 # NOTE: likely pre-emptive threshold detection
                 start_idx = rising_edges[idx+1] + self.pre_len + 1
                 end_idx = rising_edges[idx+2]  # get all up to next pre
+
+                # phase angle of preamble corr
+                pre1 = rx[rising_edges[idx]:rising_edges[idx]+self.pre_len]
+                pre2 = rx[rising_edges[idx+1]:rising_edges[idx+1]+self.pre_len]
+                cfo = self._get_freq_offset(rx, pre1, pre2)
+                print(cfo)
+
                 snippet = rx[start_idx:end_idx]
+                if self._enable_cfo:
+                    t = np.arange(0, len(snippet))
+                    snippet *= np.exp(-2j * np.pi * t * -1 * cfo / self.seq_len)
                 symbols.append(snippet)
 
         return symbols
