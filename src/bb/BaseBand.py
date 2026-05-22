@@ -56,19 +56,19 @@ class BaseBand:
                           np.zeros(guard_pad, dtype=complex)])
 
     def _power_match(self, ref_sig, target_sig):
-        """
-        returns scaled version of target_sig
-        power matched to ref sig
-        """
-        ref_power = np.max(ref_sig)
-        target_power = np.max(target_sig)
-
-        sf = target_sig / target_power * ref_power
-        return sf * 4
+        ref_power = np.sqrt(np.mean(np.abs(ref_sig)**2))
+        target_power = np.sqrt(np.mean(np.abs(target_sig)**2))
+        tx_sig = target_sig * 3 * (ref_power / target_power)
+        tx_sig_max = np.max(tx_sig)
+        return tx_sig / tx_sig_max
 
     def gen_tx(self, symbol):
         if len(symbol) > self.max_data_len:
             raise ValueError("Symbol length ({}) exceeds maximum data length of {}".format(len(symbol), self.max_data_len))
+
+        # jpadding_count = self.max_data_len - len(symbol)
+        # sig_symbol = np.concat([symbol, np.zeros(padding_count)])
+
         data_fft = self._encode_symbol(symbol)
         data_seq = np.fft.ifft(data_fft)
         data_seq = self._power_match(self.preamble, data_seq)
@@ -87,7 +87,7 @@ class BaseBand:
 
         ref_pilot[pilot_mask] = 1 + 1j
 
-        active = symbols[:, guard_pad+1:-guard_pad+1]
+        active = symbols[:, guard_pad:-guard_pad]
         sym_pilots = active[:, pilot_mask]
 
         pilot_idx = np.where(pilot_mask)[0]
@@ -122,7 +122,6 @@ class BaseBand:
 
         out = np.fft.fft(symbols)
         out = self.equalize_symbols(out)
-        print(out.shape)
 
         return out
 
@@ -168,7 +167,10 @@ class BaseBand:
                 # +1 to snip off the final bit of preamble
                 # NOTE: likely pre-emptive threshold detection
                 start_idx = rising_edges[idx+1] + self.pre_len + self.cp_len
-                end_idx = rising_edges[idx+2]  # get all up to next pre
+                end_idx = start_idx + self.n_tones
+
+                if end_idx > len(rx):
+                    continue
 
                 # phase angle of preamble corr
                 pre1 = rx[rising_edges[idx]:rising_edges[idx]+self.pre_len]
@@ -177,7 +179,8 @@ class BaseBand:
 
                 snippet = rx[start_idx:end_idx]
                 if self._enable_cfo:
-                    t = np.arange(0, len(snippet))
+                    # t = np.arange(0, len(snippet))
+                    t = np.arange(start_idx, start_idx + len(snippet))
                     snippet *= np.exp(-2j * np.pi * t * -1 * cfo / self.seq_len)
                 symbols.append(snippet)
 
