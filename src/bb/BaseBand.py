@@ -12,12 +12,19 @@ class BaseBand:
 
     def __init__(self, seq_len=1024, pre_len=32, cp_len=32, _enable_cfo=True,
                  guard_pad=16, pilot_spacing=8):
+
         self.seq_len = seq_len
         self.pre_len = pre_len
         self.cp_len = cp_len
         self.guard_pad = guard_pad
         self.pilot_spacing = pilot_spacing
-        self._rx_pre_margin = int(self.pre_len * 0.1)
+
+        self.n_tones = int(self.seq_len / 2)
+        _active_tones = self.n_tones - 2 * self.guard_pad
+        _pilot_mask = np.zeros(_active_tones, dtype=bool)
+        _pilot_mask[::self.pilot_spacing] = True
+        self.max_data_len = int(np.count_nonzero(~_pilot_mask))
+        self._rx_pre_margin = max(1, int(self.pre_len * 0.1))
         self.total_len = self.seq_len + 2 * self.pre_len
 
         self.preamble = zadoff_chu(self.pre_len, self.pre_len - 1)
@@ -25,7 +32,7 @@ class BaseBand:
         self._enable_cfo = _enable_cfo
 
     def _encode_symbol(self, symbol, dtype=complex):
-        n_tones = int(self.seq_len / 2)
+        n_tones = self.n_tones
         guard_pad = self.guard_pad
         pilot_spacing = self.pilot_spacing
 
@@ -59,11 +66,10 @@ class BaseBand:
         sf = target_sig / target_power * ref_power
         return sf * 4
 
-    def gen_tx(self):
-        sig_t = np.linspace(0, 1, 400)
-        sig_x = np.sin(2 * np.pi * 20 * sig_t)
-        sig_x = sig_x + sig_x * 1j
-        data_fft = self._encode_symbol(sig_x)
+    def gen_tx(self, symbol):
+        if len(symbol) > self.max_data_len:
+            raise ValueError("Symbol length ({}) exceeds maximum data length of {}".format(len(symbol), self.max_data_len))
+        data_fft = self._encode_symbol(symbol)
         data_seq = np.fft.ifft(data_fft)
         data_seq = self._power_match(self.preamble, data_seq)
         cp = data_seq[-self.cp_len:]
@@ -72,7 +78,7 @@ class BaseBand:
         return out
 
     def equalize_symbols(self, symbols):
-        n_tones = int(self.seq_len / 2)
+        n_tones = self.n_tones
         guard_pad = self.guard_pad
         pilot_spacing = self.pilot_spacing
         ref_pilot = np.zeros(n_tones - 2 * guard_pad, dtype=complex)

@@ -5,11 +5,16 @@ from src.PlutoSDR import PlutoSDR
 from src.bb.BaseBand import BaseBand
 
 
-sdr_rx = PlutoSDR(uri="usb:0.1.5", buffer_size=1024*36)
+sdr_rx = PlutoSDR(uri="usb:0.1.5", buffer_size=1024*32)
 sdr_tx = PlutoSDR(uri="ip:192.168.8.93", tx_gain=0)
 
-bb = BaseBand(seq_len=1024, pre_len=32, _enable_cfo=False)
-sig = bb.gen_tx()
+bb = BaseBand(seq_len=512, pre_len=32, _enable_cfo=False)
+
+sig_t = np.linspace(0, 1, 200)
+sig_x = np.sin(2 * np.pi * 20 * sig_t)
+sig_x = sig_x + sig_x * 1j
+
+sig = bb.gen_tx(sig_x)
 
 sdr_tx.transmit(sig * 2**14)
 sig_rx = sdr_rx.receive(3)
