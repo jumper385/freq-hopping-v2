@@ -10,9 +10,10 @@ log = logging.getLogger(__name__)
 
 class BaseBand:
 
-    def __init__(self, seq_len=1024, pre_len=32, _enable_cfo=True):
+    def __init__(self, seq_len=1024, pre_len=32, cp_len=32, _enable_cfo=True):
         self.seq_len = seq_len
         self.pre_len = pre_len
+        self.cp_len = cp_len
         self._rx_pre_margin = int(self.pre_len * 0.1)
         self.total_len = self.seq_len + 2 * self.pre_len
 
@@ -60,8 +61,9 @@ class BaseBand:
         data_fft = self._encode_symbol(sig_x)
         data_seq = np.fft.ifft(data_fft)
         data_seq = self._power_match(self.preamble, data_seq)
+        cp = data_seq[-self.cp_len:]
 
-        out = np.concatenate([self.preamble, self.preamble, data_seq])
+        out = np.concatenate([self.preamble, self.preamble, cp, data_seq])
         return out
 
     def equalize_symbols(self, symbols, guard_pad=16, pilot_spacing=8):
@@ -130,7 +132,7 @@ class BaseBand:
         """
         finds snippets in the received signal
         assumes preamble exists
-        gives you all snippets except the last one int he frame
+        gives you all snippets except the last one in the frame
         cos last one could be prematurely snipped off
         """
         corr = np.correlate(rx, self.preamble)
@@ -152,7 +154,7 @@ class BaseBand:
             if min_margin < spacing < max_margin:
                 # +1 to snip off the final bit of preamble
                 # NOTE: likely pre-emptive threshold detection
-                start_idx = rising_edges[idx+1] + self.pre_len
+                start_idx = rising_edges[idx+1] + self.pre_len + self.cp_len
                 end_idx = rising_edges[idx+2]  # get all up to next pre
 
                 # phase angle of preamble corr
