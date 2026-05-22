@@ -24,9 +24,9 @@ ax[0].plot(sig_rx.imag, c='red', lw=0.5)
 
 # plot detections
 det = bb.det_rx(sig_rx)
-for symbol in det:
-    ax[1].plot(symbol.real, c='black', lw=0.5)
-    ax[1].plot(symbol.imag, c='blue', lw=0.5)
+symbol = np.mean(det, axis=0)
+ax[1].plot(symbol.real, c='black', lw=0.5)
+ax[1].plot(symbol.imag, c='blue', lw=0.5)
 
 corr = np.correlate(sig_rx, bb.preamble)
 corr_mag = np.abs(corr)
