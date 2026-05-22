@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.interpolate import interp1d
 
 from src.utils.preambles import zadoff_chu
 from src.utils.AdaptivePeakDetection import AdaptivePeakDetection
@@ -19,16 +20,55 @@ class BaseBand:
 
         self._enable_cfo = _enable_cfo
 
-    def gen_tx(self):
-        t = np.linspace(0, 1, self.seq_len)
-        x = np.sin(2 * np.pi * 10 * t) / 100
-        y = np.sin(2 * np.pi * 10 * t) / 100
-        for i in range(10, 100):
-            x += np.sin(2 * np.pi * i*2 * t) / 100
-            y += np.sin(2 * np.pi * i*2 * t) / 100
+    def _encode_symbol(self, symbol, dtype=complex, pilot_spacing=8, guard_pad=16):
+        n_tones = int(self.seq_len / 2)
 
-        out = np.concatenate([self.preamble, self.preamble, x + 1j * y])
+        tones = np.zeros(n_tones - 2 * guard_pad, dtype=complex)
+        pilot_mask = np.zeros(n_tones - 2 * guard_pad, dtype=bool)
+        pilot_mask[::pilot_spacing] = True
+
+        max_data_len = np.count_nonzero(~pilot_mask)
+        data_len = len(symbol)
+
+        zero_pad = np.zeros(max_data_len - data_len)
+        tones[~pilot_mask] = np.concat([symbol, zero_pad])
+        tones[pilot_mask] = 1 + 1j
+
+        return np.concat([np.zeros(guard_pad, dtype=complex),
+                          tones,
+                          np.zeros(guard_pad, dtype=complex)])
+
+    def gen_tx(self):
+        data_fft = self._encode_symbol([0, 0.5+0.5j, 1+1j, 0.5+0.5j, 0, -0.5-0.5j, -1-1j, -0.5-0.5j, 0])
+        data_seq = np.fft.ifft(data_fft)
+
+        out = np.concatenate([self.preamble, self.preamble, data_seq])
         return out
+
+    def equalize_symbols(self, symbols, guard_pad=16, pilot_spacing=8):
+        n_tones = int(self.seq_len / 2)
+        ref_pilot = np.zeros(n_tones - 2 * guard_pad, dtype=complex)
+        pilot_mask = np.zeros(n_tones - 2 * guard_pad, dtype=bool)
+        pilot_mask[::pilot_spacing] = True
+
+        ref_pilot[pilot_mask] = 1 + 1j
+
+        active = symbols[:, guard_pad:-guard_pad]
+        sym_pilots = active[:, pilot_mask]
+
+        pilot_idx = np.where(pilot_mask)[0]
+        all_idx = np.arange(active.shape[1])
+
+        H_pilots = sym_pilots / (1 + 1j)
+
+        equalized = np.zeros_like(active)
+        for i in range(active.shape[0]):
+            f_real = interp1d(pilot_idx, H_pilots[i].real, kind='linear', fill_value='extrapolate')
+            f_imag = interp1d(pilot_idx, H_pilots[i].imag, kind='linear', fill_value='extrapolate')
+            H = f_real(all_idx) + 1j * f_imag(all_idx)
+            equalized[i] = active[i] / H
+
+        return equalized
 
     def det_rx(self, rx):
         """
@@ -36,10 +76,13 @@ class BaseBand:
         """
         symbols = self._find_snippets(rx)
         if len(symbols) < 1:
-            print("No symbols found...")
             return []
 
-        return symbols
+        out = np.fft.fft(symbols)
+        out = self.equalize_symbols(out)
+        print(out.shape)
+
+        return out
 
     def _get_threshold(self, corr_mag):
         corr_apd = AdaptivePeakDetection(style="peak")
@@ -66,10 +109,8 @@ class BaseBand:
         corr = np.correlate(rx, self.preamble)
         corr_mag = np.abs(corr)
         corr_threshold = self._get_threshold(corr_mag)
-        print(corr_threshold)
 
         rising_edges = self._get_preambles(corr_mag, corr_threshold)
-        print(rising_edges)
 
         if len(rising_edges) < 2:
             print("Couldnt find sufficient number of preambles")
@@ -91,7 +132,6 @@ class BaseBand:
                 pre1 = rx[rising_edges[idx]:rising_edges[idx]+self.pre_len]
                 pre2 = rx[rising_edges[idx+1]:rising_edges[idx+1]+self.pre_len]
                 cfo = self._get_freq_offset(rx, pre1, pre2)
-                print(cfo)
 
                 snippet = rx[start_idx:end_idx]
                 if self._enable_cfo:
