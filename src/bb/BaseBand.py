@@ -32,15 +32,34 @@ class BaseBand:
 
         zero_pad = np.zeros(max_data_len - data_len)
         tones[~pilot_mask] = np.concat([symbol, zero_pad])
-        tones[pilot_mask] = 1 + 1j
+
+        # tones[pilot_mask] = 1 + 1j
+        n_pilots = np.count_nonzero(pilot_mask)
+        pilot_seq = np.array([1+1j if i % 2 == 0 else -1-1j for i in range(n_pilots)])
+        tones[pilot_mask] = pilot_seq
 
         return np.concat([np.zeros(guard_pad, dtype=complex),
                           tones,
                           np.zeros(guard_pad, dtype=complex)])
 
+    def _power_match(self, ref_sig, target_sig):
+        """
+        returns scaled version of target_sig
+        power matched to ref sig
+        """
+        ref_power = np.max(ref_sig)
+        target_power = np.max(target_sig)
+
+        sf = target_sig / target_power * ref_power
+        return sf * 4
+
     def gen_tx(self):
-        data_fft = self._encode_symbol([0, 0.5+0.5j, 1+1j, 0.5+0.5j, 0, -0.5-0.5j, -1-1j, -0.5-0.5j, 0])
+        sig_t = np.linspace(0, 1, 400)
+        sig_x = np.sin(2 * np.pi * 20 * sig_t)
+        sig_x = sig_x + sig_x * 1j
+        data_fft = self._encode_symbol(sig_x)
         data_seq = np.fft.ifft(data_fft)
+        data_seq = self._power_match(self.preamble, data_seq)
 
         out = np.concatenate([self.preamble, self.preamble, data_seq])
         return out
@@ -53,13 +72,16 @@ class BaseBand:
 
         ref_pilot[pilot_mask] = 1 + 1j
 
-        active = symbols[:, guard_pad:-guard_pad]
+        active = symbols[:, guard_pad+1:-guard_pad+1]
         sym_pilots = active[:, pilot_mask]
 
         pilot_idx = np.where(pilot_mask)[0]
         all_idx = np.arange(active.shape[1])
 
-        H_pilots = sym_pilots / (1 + 1j)
+        #H_pilots = sym_pilots / (1 + 1j)
+        n_pilots = np.count_nonzero(pilot_mask)
+        ref_pilots = np.array([1+1j if i % 2 == 0 else -1-1j for i in range(n_pilots)])
+        H_pilots = sym_pilots / ref_pilots[np.newaxis, :]  # broadcast across symbols
 
         equalized = np.zeros_like(active)
         for i in range(active.shape[0]):
@@ -68,7 +90,12 @@ class BaseBand:
             H = f_real(all_idx) + 1j * f_imag(all_idx)
             equalized[i] = active[i] / H
 
-        return equalized
+            # pilots_eq = sym_pilots[i] / H[pilot_idx]
+            # cpo = np.mean(np.angle(pilots_eq * np.conj(1 + 1j)))
+            # equalized[i] *= np.exp(-1j * cpo)
+
+
+        return equalized[:, ~pilot_mask]
 
     def det_rx(self, rx):
         """
@@ -125,7 +152,7 @@ class BaseBand:
             if min_margin < spacing < max_margin:
                 # +1 to snip off the final bit of preamble
                 # NOTE: likely pre-emptive threshold detection
-                start_idx = rising_edges[idx+1] + self.pre_len + 1
+                start_idx = rising_edges[idx+1] + self.pre_len
                 end_idx = rising_edges[idx+2]  # get all up to next pre
 
                 # phase angle of preamble corr
