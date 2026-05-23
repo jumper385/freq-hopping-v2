@@ -10,6 +10,8 @@ class Constellation:
         self.demapper = Demapper("app", "qam", 4, hard_out=True)
 
         self.dbg_data = None
+        self.total_symbols = 0
+        self.error_count = 0
 
     def map(self, seq_len):
         """
@@ -28,7 +30,11 @@ class Constellation:
         llr = self.demapper(y_torch, no=0.01)
 
         if self.dbg_data != None:
+            self.total_symbols += 1
             error = torch.sum(self.dbg_data != llr).item()
-            print(f"Bit Errors: {error}")
+            if error > 0:
+                self.error_count += 1
+            error_rate = self.error_count / self.total_symbols
+            print(f"Bit Errors: {error} / {len(self.dbg_data)} {error_rate*100:.2f}%")
 
         return llr.numpy()
