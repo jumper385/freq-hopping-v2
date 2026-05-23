@@ -43,7 +43,7 @@ class Constellation:
             error = torch.sum(self.dbg_data != llr).item()
 
             error_rate = self.error_count / self.total_symbols
-            print(f"Bit Errors: {error} / {len(self.dbg_data)} {error_rate*100:.2f}%")
+            # print(f"Bit Errors: {error} / {len(self.dbg_data)} {error_rate*100:.2f}%")
 
             if error > 0:
                 self.error_count += 1
@@ -51,7 +51,6 @@ class Constellation:
             else:
                 bits = llr.int().tolist()
                 payload = np.packbits(bits).tobytes()
-                print(payload)
                 return payload
 
         return None
