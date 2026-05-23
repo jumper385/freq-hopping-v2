@@ -59,7 +59,7 @@ class BaseBand:
         ref_power = np.sqrt(np.mean(np.abs(ref_sig)**2))
         target_power = np.sqrt(np.mean(np.abs(target_sig)**2))
         tx_sig = target_sig * 3 * (ref_power / target_power)
-        tx_sig_max = np.max(tx_sig)
+        tx_sig_max = np.max(np.abs(tx_sig))
         return tx_sig / tx_sig_max
 
     def gen_tx(self, symbol):
