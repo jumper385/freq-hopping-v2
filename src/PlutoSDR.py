@@ -33,6 +33,10 @@ class PlutoSDR:
 
     def transmit(self, iq: np.ndarray) -> None:
         """Send a complex baseband signal.  Scales to 16-bit integer range."""
+
+        # clear buffer before transmitting new signal
+        self.sdr.tx_destroy_buffer()
+
         peak = np.max(np.abs(iq))
         if peak > 0:
             iq = iq / peak

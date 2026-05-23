@@ -24,6 +24,8 @@ pillow==12.2.0
 platformdirs==4.9.6
 pluggy==1.6.0
 pyadi-iio==0.0.20
+PyQt5
+pyqtgraph
 pycodestyle==2.12.1
 pydocstyle==6.3.0
 pyflakes==3.2.0
