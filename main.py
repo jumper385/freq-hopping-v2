@@ -3,21 +3,21 @@ import matplotlib.pyplot as plt
 
 from src.PlutoSDR import PlutoSDR
 from src.bb.BaseBand import BaseBand
+from src.bb.Constellation import Constellation
 
-
-sdr_rx = PlutoSDR(uri="usb:0.1.5", buffer_size=1024*16)
+sdr_rx = PlutoSDR(uri="usb:1.1.5", buffer_size=1024*16)
 sdr_tx = PlutoSDR(uri="ip:192.168.8.93", tx_gain=0)
 
-bb = BaseBand(seq_len=200, pre_len=32, pilot_spacing=3)
+bb = BaseBand(seq_len=1024, pre_len=32, pilot_spacing=3)
+const_N = 4
+const = Constellation(const_N)
 
-print(bb.max_data_len)
-sig_t = np.linspace(0, 1, bb.max_data_len)
-sig_x = np.sin(2 * np.pi * 2 * sig_t)
-sig_x = sig_x + sig_x * 1j
+sig_x = const.map(bb.max_data_len * const_N)
+print(sig_x.shape)
 
 sig = bb.gen_tx(sig_x)
 
-sdr_tx.transmit(sig * 2**14)
+sdr_tx.transmit(sig * 2**10)
 sig_rx = sdr_rx.receive(3)
 t = np.arange(0, len(sig_rx))
 # sig_rx = sig_rx * np.exp(-2j * np.pi * t * 2.08 / 1024)
@@ -33,6 +33,9 @@ det = bb.det_rx(sig_rx)
 symbol = np.mean(det, axis=0)
 ax[1].plot(symbol.real, c='black', lw=0.5)
 ax[1].plot(symbol.imag, c='blue', lw=0.5)
+
+yhat = const.demap(symbol)
+print(yhat)
 
 corr = np.correlate(sig_rx, bb.preamble)
 corr_mag = np.abs(corr)
