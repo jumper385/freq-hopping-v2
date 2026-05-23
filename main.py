@@ -86,8 +86,6 @@ def update():
         scatter.setData(symbol.real, symbol.imag)
 
         yhat = const.demap(symbol)
-        print(yhat)
-
 
 timer = QtCore.QTimer()
 timer.timeout.connect(update)
