@@ -11,19 +11,24 @@ log = logging.getLogger(__name__)
 class BaseBand:
 
     def __init__(self, seq_len=1024, pre_len=32, cp_len=32, _enable_cfo=True,
-                 guard_pad=16, pilot_spacing=8):
+                 guard_pad=16, pilot_spacing=8, center_guard=32):
 
         self.seq_len = seq_len
         self.pre_len = pre_len
         self.cp_len = cp_len
         self.guard_pad = guard_pad
         self.pilot_spacing = pilot_spacing
+        self.center_guard = center_guard
 
         self.n_tones = int(self.seq_len / 2)
         _active_tones = self.n_tones - 2 * self.guard_pad
+        _center = _active_tones // 2
+        _center_mask = np.zeros(_active_tones, dtype=bool)
+        _center_mask[_center - self.center_guard : _center + self.center_guard] = True
         _pilot_mask = np.zeros(_active_tones, dtype=bool)
         _pilot_mask[::self.pilot_spacing] = True
-        self.max_data_len = int(np.count_nonzero(~_pilot_mask))
+        _pilot_mask[_center_mask] = False
+        self.max_data_len = int(np.count_nonzero(~_pilot_mask & ~_center_mask))
         self._rx_pre_margin = max(1, int(self.pre_len * 0.1))
         self.total_len = self.seq_len + 2 * self.pre_len
 
@@ -35,18 +40,25 @@ class BaseBand:
         n_tones = self.n_tones
         guard_pad = self.guard_pad
         pilot_spacing = self.pilot_spacing
+        center_guard = self.center_guard
 
-        tones = np.zeros(n_tones - 2 * guard_pad, dtype=complex)
-        pilot_mask = np.zeros(n_tones - 2 * guard_pad, dtype=bool)
+        active_len = n_tones - 2 * guard_pad
+        center = active_len // 2
+        center_mask = np.zeros(active_len, dtype=bool)
+        center_mask[center - center_guard : center + center_guard] = True
+
+        tones = np.zeros(active_len, dtype=complex)
+        pilot_mask = np.zeros(active_len, dtype=bool)
         pilot_mask[::pilot_spacing] = True
+        pilot_mask[center_mask] = False
 
-        max_data_len = np.count_nonzero(~pilot_mask)
+        data_mask = ~pilot_mask & ~center_mask
+        max_data_len = np.count_nonzero(data_mask)
         data_len = len(symbol)
 
         zero_pad = np.zeros(max_data_len - data_len)
-        tones[~pilot_mask] = np.concat([symbol, zero_pad])
+        tones[data_mask] = np.concat([symbol, zero_pad])
 
-        # tones[pilot_mask] = 1 + 1j
         n_pilots = np.count_nonzero(pilot_mask)
         pilot_seq = np.array([1+1j if i % 2 == 0 else -1-1j for i in range(n_pilots)])
         tones[pilot_mask] = pilot_seq
@@ -81,9 +93,17 @@ class BaseBand:
         n_tones = self.n_tones
         guard_pad = self.guard_pad
         pilot_spacing = self.pilot_spacing
-        ref_pilot = np.zeros(n_tones - 2 * guard_pad, dtype=complex)
-        pilot_mask = np.zeros(n_tones - 2 * guard_pad, dtype=bool)
+        center_guard = self.center_guard
+
+        active_len = n_tones - 2 * guard_pad
+        center = active_len // 2
+        center_mask = np.zeros(active_len, dtype=bool)
+        center_mask[center - center_guard : center + center_guard] = True
+
+        ref_pilot = np.zeros(active_len, dtype=complex)
+        pilot_mask = np.zeros(active_len, dtype=bool)
         pilot_mask[::pilot_spacing] = True
+        pilot_mask[center_mask] = False
 
         ref_pilot[pilot_mask] = 1 + 1j
 
@@ -110,7 +130,7 @@ class BaseBand:
             # equalized[i] *= np.exp(-1j * cpo)
 
 
-        return equalized[:, ~pilot_mask]
+        return equalized[:, ~pilot_mask & ~center_mask]
 
     def det_rx(self, rx):
         """
