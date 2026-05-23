@@ -9,7 +9,7 @@ from src.bb.BaseBand import BaseBand
 from src.bb.Constellation import Constellation
 
 # --- Hardware setup (one-time) ---
-sdr_rx = PlutoSDR(uri="usb:1.2.5", buffer_size=1024*8, center_freq=915_000_000)
+sdr_rx = PlutoSDR(uri="ip:192.168.8.94", buffer_size=1024*18, center_freq=915_000_000)
 sdr_tx = PlutoSDR(uri="ip:192.168.8.93", tx_gain=0, center_freq=915_000_000)
 
 bb = BaseBand(seq_len=1024, pre_len=32, pilot_spacing=3)
@@ -68,7 +68,8 @@ def update():
         _fps_ema = _fps_alpha * (1.0 / dt) + (1 - _fps_alpha) * _fps_ema
     win.setWindowTitle(f"Real-time SDR  |  {_fps_ema:.1f} frames/s")
 
-    sig_x = const.map(bb.max_data_len * const_N)
+    payload = "The quick brown fox jumped".encode("utf8")
+    sig_x = const.map(payload, bb.max_data_len * const_N)
     sig = bb.gen_tx(sig_x)
     sdr_tx.transmit(sig * 2**10)
 
