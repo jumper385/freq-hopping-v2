@@ -1,7 +1,4 @@
 import argparse
-import sys
-import RNS
-
 from src.reticulum.RNSComms import RNSComms
 
 
@@ -27,7 +24,7 @@ rns_comms.dest_setup()
 rns_comms.announce()
 
 while True:
-    _ = input()
+    message = input("ENTER MESSAGE > ")
     rns_comms.announce()
     for dest_hash in list(rns_comms.peers.keys()):
-        rns_comms.send(dest_hash, "HELLO WORLD")
+        rns_comms.send(dest_hash, message)
