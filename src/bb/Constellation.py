@@ -8,7 +8,7 @@ class Constellation:
     def __init__(self, N):
         self.N = N
         self.mapper = Mapper("qam", N)
-        self.demapper = Demapper("app", "qam", 4, hard_out=True)
+        self.demapper = Demapper("app", "qam", N, hard_out=True)
 
         self.dbg_data = None
         self.total_symbols = 0

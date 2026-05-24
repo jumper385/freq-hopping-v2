@@ -29,7 +29,7 @@ class PlutoSDR:
         self.sdr.gain_control_mode_chan0 = "manual"
         self.sdr.rx_hardwaregain_chan0 = rx_gain
         self.sdr.rx_buffer_size = buffer_size
-        self.sdr.tx_cyclic_buffer = True
+        self.sdr.tx_cyclic_buffer = False
 
     def transmit(self, iq: np.ndarray) -> None:
         """Send a complex baseband signal.  Scales to 16-bit integer range."""
