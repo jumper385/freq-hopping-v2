@@ -3,7 +3,6 @@ import pytest
 import sionna.phy
 import matplotlib.pyplot as plt
 
-from src.bb.Constellation import Constellation
 
 def test_constellation():
 
