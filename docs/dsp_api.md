@@ -193,7 +193,8 @@ No constructor parameters.
 ### 5.2 `QAMMapper` — `src/bb/mapping.py`
 
 Wraps Sionna's GPU-aware QAM Mapper/Demapper.
-> [!TODO]
+
+> [!WARNING]
 > Will remove this with a custom QAM mapper oneday
 
 ```python
