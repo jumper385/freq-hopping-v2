@@ -28,4 +28,4 @@ def test_constellation():
     # print(bits_hat)
     # torch.Size([10, 100])
 
-    print("bit errors:", torch.sum(bits != llr).item())
+    print("bit errors:", torch.sum(bits != llr.cpu()).item())
