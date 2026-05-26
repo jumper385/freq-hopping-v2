@@ -221,3 +221,6 @@ __marimo__/
 
 .DS_Store
 *.swp
+
+/rns/storage
+/rns2/storage
